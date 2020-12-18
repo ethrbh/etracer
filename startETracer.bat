@@ -1,0 +1,1 @@
+werl -sname etracer -setcookie dmxc -pa "ebin/" -run etracer start
