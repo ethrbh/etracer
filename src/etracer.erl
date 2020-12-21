@@ -730,20 +730,17 @@ init(Options) ->
 			%% --------------------------------------------------------------------
 			%% Do not touch this part!!
 			%% --------------------------------------------------------------------
-			Panel = wxPanel:new(Frame, []),
+			Panel = wxPanel:new(Frame, [{style, ?wxSUNKEN_BORDER}]),
 			DefaultPanelColor = wxPanel:getBackgroundColour(Panel),
-			
 			Sizer = wxStaticBoxSizer:new(?wxVERTICAL, Panel, [{label, ""}]),
-			Splitter = wxSplitterWindow:new(Panel, [{style, ?wxSP_BORDER}]),
+			NewTraceSizer = wxStaticBoxSizer:new(?wxHORIZONTAL, Panel, [{label, "Create a Tracer"}]),
 			
-			NewTraceSizer = wxStaticBoxSizer:new(?wxVERTICAL, Panel, [{label, "Enter New Trace Name"}]),
-			
-			wxSizer:add(Sizer, NewTraceSizer, [{flag, ?wxEXPAND}]),
+			wxSizer:add(Sizer, NewTraceSizer, [{flag, ?wxEXPAND},{border, ?WX_OBJ_BORDER_SIZE}]),
 			TraceNameTextCtrl = wxTextCtrl:new(Panel, ?ENTRY_ID_NEWTRACE, [{value, ""}, {style, ?wxDEFAULT}]),
-			wxSizer:add(NewTraceSizer, TraceNameTextCtrl, [{flag, ?wxEXPAND}]),
+			wxSizer:add(NewTraceSizer, TraceNameTextCtrl, [{flag, ?wxEXPAND},{border, ?WX_OBJ_BORDER_SIZE}]),
 			wxTextCtrl:connect(TraceNameTextCtrl, command_text_updated),
 			
-			NewTraceButton = wxButton:new(Panel, ?BTN_ID_NEWTRACE, [{label, "Create New Trace"}]),
+			NewTraceButton = wxButton:new(Panel, ?BTN_ID_NEWTRACE, [{label, "Create"}]),
 			wxSizer:add(NewTraceSizer, NewTraceButton, [{flag, ?wxEXPAND}]),
 			wxButton:connect(NewTraceButton, command_button_clicked),
 			
@@ -751,6 +748,8 @@ init(Options) ->
 			%% Do not touch this part END
 			%% --------------------------------------------------------------------
 			
+            Splitter = wxSplitterWindow:new(Panel, [{style, ?wxSP_BORDER}]),
+            
 			TracePanelFun = fun(Parent) ->
 									MainSizer2 = wxStaticBoxSizer:new(?wxVERTICAL, Parent, [{label, ""}]),
 									
@@ -771,13 +770,18 @@ init(Options) ->
 			
 			%% Load all Tracer TAB. Check MNESIA for these.
 			[begin
-				 enotebook:create_tab(Rec#rETracerConfig.name, [{parent, Notebook}, {color, DefaultPanelColor}, {name, Rec#rETracerConfig.name}, {erlangNode, Rec#rETracerConfig.erlang_node}, {erlangNodeCookie, Rec#rETracerConfig.erlang_node_cookie}])
+				 enotebook:create_tab(Rec#rETracerConfig.name, [{parent, Notebook}, 
+                                                                {color, DefaultPanelColor}, 
+                                                                {name, Rec#rETracerConfig.name}, 
+                                                                {erlangNode, Rec#rETracerConfig.erlang_node}, 
+                                                                {erlangNodeCookie, Rec#rETracerConfig.erlang_node_cookie}])
 			 end || Rec <- ets:tab2list(?ETRACER_CONFIG_TABLE)],
 
 			%% Event Panel
 			EventPanel = wxPanel:new(Splitter, []),
 			EventPanelSizer = wxStaticBoxSizer:new(?wxHORIZONTAL, EventPanel, [{label, "Events"}]),
-			EventPanelCtrl = wxTextCtrl:new(EventPanel, ?wxID_ANY, [{value, ""}, {style, ?wxTE_DONTWRAP bor ?wxTE_MULTILINE bor ?wxTE_READONLY}]),
+			EventPanelCtrl = wxTextCtrl:new(EventPanel, ?wxID_ANY, [{value, ""}, 
+                                                                    {style, ?wxTE_DONTWRAP bor ?wxTE_MULTILINE bor ?wxTE_READONLY}]),
 			wxSizer:add(EventPanelSizer, EventPanelCtrl, [{flag, ?wxEXPAND}, {proportion, 1}]),
 			wxPanel:setSizer(EventPanel, EventPanelSizer),
 			
@@ -926,9 +930,7 @@ handle_event(_WXEvent = #wx{id = Id,
 					case PressedButton of
 						_->	{noreply, State}
 					end;
-				_->
-					%%Notebook = State#state.trace_panel_notebook_id,
-					
+				_->					
 					%% Validate Trace Name
 					case enotebook:create_tab(ETracerConfigName, [{color, State#state.default_panel_color}]) of
 						TraceTab when is_record(TraceTab, wx_ref) ->

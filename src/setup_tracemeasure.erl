@@ -235,7 +235,8 @@ init(ETracerConfigName) when is_list(ETracerConfigName) ->
 	%% Setup Trace Pattern
 	TracePatternSelectionServer = ?TRACEPATTERN_SELECTION_SERVER(ETracerConfigName),
 	wxFilterBox:filterBoxCtrl_Clear(TracePatternSelectionServer),
-	wxFilterBox:filterBoxCtrl_AppendItems(TracePatternSelectionServer, convert_trace_pattern_to_string(ETracerConfigRec#rETracerConfig.trace_pattern)),
+	wxFilterBox:filterBoxCtrl_AppendItems(TracePatternSelectionServer, 
+                                          convert_trace_pattern_to_string(ETracerConfigRec#rETracerConfig.trace_pattern)),
 	
 	%% Setup Trace Flags
 	case lists:keysearch(trace_flag, 1, BottomPanelObjList) of
@@ -326,9 +327,7 @@ handle_info(_Info = {MsgId, #rFILTERBOX_ACTIONS.command_listbox_selected, Module
 	%% all		-	all as an atom(). This means that all modules are selected
 	%%
 	%% Trace Measure will notif y?FUNCTION_SELECTION_SERVER about changes.
-	
-	%%error_logger:info_report(["Info", {info, Info}, {module, ?MODULE}, {line, ?LINE}]),
-	
+		
 	case MsgId of
 		'MODULE_SELECTION' ->
 			
@@ -406,18 +405,9 @@ handle_event(_WXEvent = #wx{id = Id,
 									case Functions of
 										[] ->
 											%% None of functions are selected.
-											append_to_trace_pattern(Rec#rETracerConfig.name, Mod, ?SPECIAL_TAG_FOR_ALL_FUNCTIONS_ARE_SELECTED, undefined);
+											append_to_trace_pattern(Rec#rETracerConfig.name, Mod);
 										_->	%% Some functions had been selected
 											[begin
-%% 												 case etracer:string_to_erlang_term(Fun) of
-%% 													 {ok, Term} ->
-%% 														 case Term of
-%% 															 {FuncName, Arity} ->
-%% 																 append_to_trace_pattern(Rec#rETracerConfig.name, Mod, erlang:atom_to_list(FuncName), erlang:integer_to_list(Arity));
-%% 															 _-> do_nothing
-%% 														 end;
-%% 													 _-> do_nothing
-%% 												 end
 												case string:rstr(Fun, ?FUNCTION_ARITY_SEPARATOR) of
 													0 ->
 														%% Upps, ?FUNCTION_ARITY_SEPARATOR char does not found
@@ -427,7 +417,8 @@ handle_event(_WXEvent = #wx{id = Id,
 														%% Copy subsctring from 1 to I
 														FuncName = string:sub_string(Fun, 1, I-1),
 														Arity = string:sub_string(Fun, I+1, string:len(Fun)),
-														append_to_trace_pattern(Rec#rETracerConfig.name, Mod, FuncName, Arity)
+														append_to_trace_pattern(Rec#rETracerConfig.name, 
+                                                                                Mod, FuncName, Arity)
 												end
 											 end || Fun <- Functions]
 									end;
@@ -437,7 +428,7 @@ handle_event(_WXEvent = #wx{id = Id,
 							end;
 						_->	%% More than one module had been selected
 							[begin
-								 append_to_trace_pattern(Rec#rETracerConfig.name, Mod, ?SPECIAL_TAG_FOR_ALL_FUNCTIONS_ARE_SELECTED, undefined)
+								 append_to_trace_pattern(Rec#rETracerConfig.name, Mod)
 							 end || Mod <- Modules]
 					end,
 					
@@ -622,7 +613,9 @@ create_top_panel(ETracerConfigName, Parent, Label) ->
 	
 	%% Setup Action list to be use in Module Selection FiterBox
 	ModuleSelectionServer = ?MODULE_SELECTION_SERVER(ETracerConfigName),
-	ActionListModuleSelectionPanel = [{#rFILTERBOX_ACTIONS.command_listbox_selected, {?MODULE, notify, [self(), {'MODULE_SELECTION', #rFILTERBOX_ACTIONS.command_listbox_selected, give_selected_items}]}}],
+	ActionListModuleSelectionPanel = [{#rFILTERBOX_ACTIONS.command_listbox_selected, 
+                                       {?MODULE, notify, [self(), 
+                                                          {'MODULE_SELECTION', #rFILTERBOX_ACTIONS.command_listbox_selected, give_selected_items}]}}],
 	ModuleSelectionPanel = wxFilterBox:start(ModuleSelectionServer, [{parent, Panel}, {label, "Module selection"}, {action_list, ActionListModuleSelectionPanel}]),
 	
 	FunctionSelectionServer = ?FUNCTION_SELECTION_SERVER(ETracerConfigName),
@@ -702,6 +695,12 @@ create_bottom_panel(Parent, Label) ->
 %% Output:
 %%		ok | {error, Reason}
 %% --------------------------------------------------------------------
+append_to_trace_pattern(ETracerConfigName, Module) ->
+    append_to_trace_pattern(ETracerConfigName, Module, '_').
+
+append_to_trace_pattern(ETracerConfigName, Module, Function) ->
+    append_to_trace_pattern(ETracerConfigName, Module, Function, '_').
+
 append_to_trace_pattern(ETracerConfigName, Module, Function, Arity) ->
 	TracePattern = generate_trace_pattern_text(Module, Function, Arity),
 	
@@ -724,15 +723,10 @@ append_to_trace_pattern(ETracerConfigName, Module, Function, Arity) ->
 %% Output:
 %%		Text	:	string
 %% --------------------------------------------------------------------
+generate_trace_pattern_text(Module, '_', '_') ->
+    generate_trace_pattern_text(Module, "_", "_");
 generate_trace_pattern_text(Module, Function, Arity) ->
-	case Function of
-		?SPECIAL_TAG_FOR_ALL_FUNCTIONS_ARE_SELECTED ->
-			%% Ignore Arity and use Module only
-			Module++?MODULE_FUNCTION_SEPARATOR++?SPECIAL_TAG_FOR_ALL_FUNCTIONS_ARE_SELECTED;
-		
-		_->	%% Function is also set
-			Module++?MODULE_FUNCTION_SEPARATOR++Function++?FUNCTION_ARITY_SEPARATOR++Arity
-	end.
+    Module++?MODULE_FUNCTION_SEPARATOR++Function++?FUNCTION_ARITY_SEPARATOR++Arity.
 
 %% --------------------------------------------------------------------
 %% Save Trace Pattern into MNESIA
@@ -797,21 +791,22 @@ convert_string_based_trace_pattern_loop([], TracePatternList) ->
 convert_string_based_trace_pattern_loop([H|T], TracePatternList) ->
 	%% Split the string by ?MODULE_FUNCTION_SEPARATOR
 	{M,F,A} = case re:split(H, ?MODULE_FUNCTION_SEPARATOR) of
-				  [Bin1,Bin2] ->
-					  Bin1Str = erlang:binary_to_list(Bin1),
-					  Bin2Str = erlang:binary_to_list(Bin2),
-					  case re:split(Bin2Str, ?FUNCTION_ARITY_SEPARATOR) of
-						  [_Bin3] ->
-							  %% No Arity found. It is means that the String looks like this: H = <MODULE_NAME>:<?SPECIAL_TAG_FOR_ALL_FUNCTIONS_ARE_SELECTED>
-							  {erlang:list_to_atom(Bin1Str), '_', '_'};
-						  [Bin3, Bin4] ->
-							  Bin3Str = erlang:binary_to_list(Bin3),
-							  Bin4Str = erlang:binary_to_list(Bin4),
+				  [ModT,FuncAndArityT] ->
+					  Mod = erlang:binary_to_list(ModT),
+					  FuncAndArity = erlang:binary_to_list(FuncAndArityT),
+					  case re:split(FuncAndArity, ?FUNCTION_ARITY_SEPARATOR) of
+						  [FuncT, ArityT] ->
+							  Func = erlang:list_to_atom(erlang:binary_to_list(FuncT)),
+							  Arity = case erlang:binary_to_list(ArityT) of
+                                          "_" ->
+                                              '_';
+                                          ArityString-> erlang:list_to_integer(ArityString)
+                                      end,
 							  
-							  {erlang:list_to_atom(Bin1Str), erlang:list_to_atom(Bin3Str), erlang:list_to_integer(Bin4Str)};
+							  {erlang:list_to_atom(Mod), Func, Arity};
 						  _->
 							  %% More that one ?FUNCTION_ARITY_SEPARATOR found, thus have to find the last.
-							  case string:rstr(Bin2Str, ?FUNCTION_ARITY_SEPARATOR) of
+							  case string:rstr(FuncAndArity, ?FUNCTION_ARITY_SEPARATOR) of
 								  0 ->
 									  %% Upps, ?FUNCTION_ARITY_SEPARATOR char does not found
 									  error_logger:error_report(["Error occured when convert Trace Pattern to string", {trace_patter, H}]),
@@ -819,9 +814,9 @@ convert_string_based_trace_pattern_loop([H|T], TracePatternList) ->
 								  I ->
 									  %% I is the last position of ?FUNCTION_ARITY_SEPARATOR char.
 									  %% Copy subsctring from 1 to I
-									  Bin3Str = string:sub_string(Bin2Str, 1, I-1),
-									  Bin4Str = string:sub_string(Bin2Str, I+1, string:len(Bin2Str)),
-									  {erlang:list_to_atom(Bin1Str), erlang:list_to_atom(Bin3Str), erlang:list_to_integer(Bin4Str)}
+									  Func = string:sub_string(FuncAndArity, 1, I-1),
+									  Arity = string:sub_string(FuncAndArity, I+1, string:len(FuncAndArity)),
+									  {erlang:list_to_atom(Mod), erlang:list_to_atom(Func), erlang:list_to_integer(Arity)}
 							  end
 					  end
 			  end,
@@ -840,10 +835,18 @@ convert_trace_pattern_to_string(TracePatternList) ->
 
 convert_trace_pattern_to_string_loop([], TracePatternList_StringBased) ->
 	TracePatternList_StringBased;
-convert_trace_pattern_to_string_loop([{M,'_','_'}|T], TracePatternList_StringBased) ->
-	convert_trace_pattern_to_string_loop(T, lists:append(TracePatternList_StringBased, [erlang:atom_to_list(M)++?MODULE_FUNCTION_SEPARATOR++?SPECIAL_TAG_FOR_ALL_FUNCTIONS_ARE_SELECTED]));
+convert_trace_pattern_to_string_loop([{M,F,'_'}|T], TracePatternList_StringBased) ->
+    convert_trace_pattern_to_string_loop(T, lists:append(TracePatternList_StringBased, [erlang:atom_to_list(M)++
+                                                                                            ?MODULE_FUNCTION_SEPARATOR++
+                                                                                            erlang:atom_to_list(F)++
+                                                                                            ?FUNCTION_ARITY_SEPARATOR++
+                                                                                            "_"]));
 convert_trace_pattern_to_string_loop([{M,F,A}|T], TracePatternList_StringBased) ->
-	convert_trace_pattern_to_string_loop(T, lists:append(TracePatternList_StringBased, [erlang:atom_to_list(M)++?MODULE_FUNCTION_SEPARATOR++erlang:atom_to_list(F)++?FUNCTION_ARITY_SEPARATOR++erlang:integer_to_list(A)])).
+	convert_trace_pattern_to_string_loop(T, lists:append(TracePatternList_StringBased, [erlang:atom_to_list(M)++
+                                                                                            ?MODULE_FUNCTION_SEPARATOR++
+                                                                                            erlang:atom_to_list(F)++
+                                                                                            ?FUNCTION_ARITY_SEPARATOR++
+                                                                                            erlang:integer_to_list(A)])).
 
 %% --------------------------------------------------------------------
 %% Get the list of exported and not exported functions of module.

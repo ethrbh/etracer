@@ -4,7 +4,17 @@
 %% --------------------------------------------------------------------
 %% Defines
 %% --------------------------------------------------------------------
--define(TOOL_VERSION, "0.0.3").
+-define(TOOL_MAIN_DIR,
+        begin
+            string:tokens(os:cmd("pwd"), "\n")
+        end
+        ).
+
+-define(TOOL_VERSION, begin
+                          Script = string:concat(?TOOL_MAIN_DIR, "/bin/get_version.sh"),
+                          V=string:tokens(os:cmd(Script), "\n"),
+                          lists:nth(1, V)
+                      end).
 
 -define(WX_OBJECT_CALL_TO, 5000).
 -define(MAIN_TITLE, "ETracer").
@@ -26,7 +36,7 @@
 
 -define(WX_ETRACER_MENU_ID_SAVE_SETTINGS, 8000).
 
--define(MAIN_WINDOW_HIGHT, 650).
+-define(MAIN_WINDOW_HIGHT, 750).
 -define(MAIN_WINDOW_WIDTH, 1000).
 -define(MAIN_WINDOW_SIZE, {?MAIN_WINDOW_WIDTH,?MAIN_WINDOW_HIGHT}).
 
@@ -37,6 +47,8 @@
 
 -define(DEFAULT_TRACER_PORT,4711).
 -define(DEFAULT_MSG_QUEUE_SIZE,50000).
+
+-define(WX_OBJ_BORDER_SIZE, 10).
 
 %% --------------------------------------------------------------------
 %% Record of Wx Obj Id names to be used in Tracer Tab

@@ -209,6 +209,7 @@ init(Config) ->
 				 bor ?wxAUI_NB_CLOSE_ON_ACTIVE_TAB
 				 bor ?wxAUI_NB_TAB_MOVE
 				 bor ?wxAUI_NB_SCROLL_BUTTONS
+                 bor ?wxSUNKEN_BORDER
 			),
 	
 	Notebook = wxAuiNotebook:new(Parent, [{style, Style}]),
